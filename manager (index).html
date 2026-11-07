@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>한국사 학습지 관리자 시스템 (Google 로그인)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <!-- 1. 구글 로그인 카드 (미인증 상태) -->
+  <div id="loginCard" class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
+    <div class="w-16 h-16 bg-slate-100 text-slate-700 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-4 shadow-inner">
+      <i class="fa-solid fa-lock"></i>
+    </div>
+    <h1 class="text-xl font-bold text-slate-800">교사 관리자 인증</h1>
+    <p class="text-xs text-slate-500 mt-1 mb-6 leading-relaxed">
+      학생 제출 답안 열람 및 CSV 다운로드를 위해<br>등록된 구글 교사 계정으로 로그인해 주세요.
+    </p>
+
+    <!-- 구글 로그인 버튼 -->
+    <button id="googleLoginBtn" type="button"
+      class="w-full py-3.5 px-4 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl border border-slate-300 shadow-sm transition flex items-center justify-center gap-3 active:scale-[0.99]">
+      <svg class="w-5 h-5" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+      </svg>
+      <span>Google 계정으로 로그인</span>
+    </button>
+
+    <div id="loginErrorMsg" class="hidden text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200 mt-4 text-left"></div>
+  </div>
+
+  <!-- 2. 관리자 대시보드 (구글 로그인 완료 상태) -->
+  <div id="adminDashboard" class="hidden w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+    <div class="flex items-center justify-between border-b border-slate-200 pb-5 mb-6">
+      <div class="flex items-center gap-3">
+        <img id="userAvatar" src="" alt="프로필" class="w-10 h-10 rounded-full border border-slate-300">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-800" id="userNameText">-</span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">인증 완료</span>
+          </div>
+          <p id="userEmailText" class="text-xs text-slate-500 font-mono mt-0.5">-</p>
+        </div>
+      </div>
+      <button id="logoutBtn" class="text-xs text-slate-500 hover:text-slate-800 border border-slate-300 px-3 py-1.5 rounded-lg transition">
+        로그아웃
+      </button>
+    </div>
+
+    <div class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-5 mb-6 text-sm text-slate-700 leading-relaxed">
+      <p class="font-bold text-indigo-900 mb-1"><i class="fa-solid fa-shield-check text-indigo-600 mr-1.5"></i>보안 규칙 적용 모드</p>
+      파이어스토어 규칙에 지정된 구글 계정으로만 답안 데이터가 안전하게 수신됩니다. 아래 버튼을 클릭하여 CSV 파일로 다운로드하세요.
+    </div>
+
+    <button id="downloadCsvBtn"
+      class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2 text-base">
+      <i class="fa-solid fa-file-csv text-xl"></i>
+      <span>전체 답안 다운로드 (CSV)</span>
+    </button>
+
+    <div id="statusMsg" class="text-center text-xs text-slate-500 mt-4 min-h-[20px]"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB-Mp1EoY1K_d2I-9wcR8Eepj1uXNhm2lw",
+      authDomain: "study-vibe-1.firebaseapp.com",
+      projectId: "study-vibe-1",
+      storageBucket: "study-vibe-1.firebasestorage.app",
+      messagingSenderId: "164070282587",
+      appId: "1:164070282587:web:484adfae19d2415dff367e",
+      measurementId: "G-VW8VF0L8JZ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    const loginCard = document.getElementById('loginCard');
+    const adminDashboard = document.getElementById('adminDashboard');
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const loginErrorMsg = document.getElementById('loginErrorMsg');
+    const userAvatar = document.getElementById('userAvatar');
+    const userNameText = document.getElementById('userNameText');
+    const userEmailText = document.getElementById('userEmailText');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+    const statusMsg = document.getElementById('statusMsg');
+
+    // 인증 상태 변경 감지
+    onAuthStateChanged(auth, (user) => {
+      if (user && !user.isAnonymous) {
+        loginCard.classList.add('hidden');
+        adminDashboard.classList.remove('hidden');
+        userAvatar.src = user.photoURL || 'https://via.placeholder.com/40';
+        userNameText.textContent = user.displayName || '선생님';
+        userEmailText.textContent = user.email;
+      } else {
+        loginCard.classList.remove('hidden');
+        adminDashboard.classList.add('hidden');
+      }
+    });
+
+    // 구글 팝업 로그인
+    googleLoginBtn.addEventListener('click', async () => {
+      loginErrorMsg.classList.add('hidden');
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.error("구글 로그인 실패:", err);
+        loginErrorMsg.textContent = `로그인 오류 [${err.code}]: ${err.message}`;
+        loginErrorMsg.classList.remove('hidden');
+      }
+    });
+
+    // 로그아웃
+    logoutBtn.addEventListener('click', async () => {
+      await signOut(auth);
+      location.reload();
+    });
+
+    // CSV 특수기호 이스케이프
+    function escapeCSV(text) {
+      if (text === null || text === undefined) return '';
+      const str = String(text);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
+    // CSV 다운로드 동작
+    downloadCsvBtn.addEventListener('click', async () => {
+      try {
+        downloadCsvBtn.disabled = true;
+        downloadCsvBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 데이터를 안전하게 수신 중...';
+        statusMsg.textContent = '구글 보안 인증을 거쳐 파이어스토어 데이터를 수집하고 있습니다...';
+
+        const submissionsRef = collection(db, 'history_submissions');
+        const q = query(submissionsRef, orderBy('clientSubmittedAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          statusMsg.innerHTML = '<span class="text-rose-500 font-medium">제출된 답안 데이터가 없습니다.</span>';
+          resetBtn();
+          return;
+        }
+
+        let csvContent = '\uFEFF';
+        csvContent += "제출일시,학년,반,번호,성명,객관식1,객관식2,객관식3,주관식4,주관식5\n";
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const s = data.student || {};
+          const a = data.answers || {};
+
+          let timeString = '';
+          if (data.clientSubmittedAt) {
+            timeString = new Date(data.clientSubmittedAt).toLocaleString('ko-KR');
+          }
+
+          const row = [
+            escapeCSV(timeString),
+            escapeCSV(s.grade),
+            escapeCSV(s.classNum),
+            escapeCSV(s.studentNum),
+            escapeCSV(s.name),
+            escapeCSV(a.q1),
+            escapeCSV(a.q2),
+            escapeCSV(a.q3),
+            escapeCSV(a.q4),
+            escapeCSV(a.q5)
+          ];
+          csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        link.setAttribute("download", `한국사_학습지결과_${today}.csv`);
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        statusMsg.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fa-solid fa-check mr-1"></i> 총 ${querySnapshot.size}건 다운로드 완료</span>`;
+      } catch (err) {
+        console.error("데이터 수신 오류:", err);
+        statusMsg.innerHTML = `<span class="text-rose-600 font-semibold">오류 [${err.code || 'ACCESS_DENIED'}]: 규칙에 등록된 구글 계정이 아니거나 권한이 없습니다.</span>`;
+      } finally {
+        resetBtn();
+      }
+    });
+
+    function resetBtn() {
+      downloadCsvBtn.disabled = false;
+      downloadCsvBtn.innerHTML = '<i class="fa-solid fa-file-csv text-xl"></i><span>전체 답안 다운로드 (CSV)</span>';
+    }
+  </script>
+</body>
+</html>
